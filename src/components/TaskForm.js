@@ -1,26 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-const TaskForm = ({ onAdd }) => {
+const TaskForm = ({ onAdd, editTask, onUpdate }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [dueDate, setDueDate] = useState('');
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
+    useEffect(() => {
+        if (editTask) {
+            setTitle(editTask.title);
+            setDescription(editTask.description);
+            setDueDate(editTask.dueDate);
+        } else {
+            setTitle('');
+            setDescription('');
+            setDueDate('');
+        }
+    }, [editTask]);
+
+    const handleSubmit = (event) => {
+        event.preventDefault();
 
         if (!title || !dueDate) {
             alert('Please provide a title and due date for the task.');
             return;
         }
 
-        const newTask = {
+        const task = {
             title,
             description,
-            status: false,
             dueDate,
         };
 
-        onAdd(newTask);
+        if (editTask) {
+            onUpdate(editTask.id, task);
+        } else {
+            onAdd(task);
+        }
 
         setTitle('');
         setDescription('');
@@ -36,7 +51,7 @@ const TaskForm = ({ onAdd }) => {
                     id="title"
                     placeholder="Enter task title"
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
+                    onChange={(event) => setTitle(event.target.value)}
                 />
             </div>
             <div className="form-control">
@@ -45,7 +60,7 @@ const TaskForm = ({ onAdd }) => {
                     id="description"
                     placeholder="Enter task description"
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={(event) => setDescription(event.target.value)}
                 ></textarea>
             </div>
             <div className="form-control">
@@ -54,11 +69,11 @@ const TaskForm = ({ onAdd }) => {
                     type="date"
                     id="dueDate"
                     value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
+                    onChange={(event) => setDueDate(event.target.value)}
                 />
             </div>
             <button type="submit" className="btn btn-add">
-                Add Task
+                {editTask ? 'Update Task' : 'Add Task'}
             </button>
         </form>
     );

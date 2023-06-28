@@ -1,7 +1,11 @@
 import React from 'react';
 
-const Task = ({ task, onDelete, onToggle }) => {
+const Task = ({ task, onDelete, onToggle, onEdit }) => {
     const { id, title, description, status, dueDate } = task;
+
+    const handleEdit = () => {
+        onEdit(task);
+    };
 
     return (
         <div className={`task ${status ? 'completed' : ''}`}>
@@ -13,6 +17,9 @@ const Task = ({ task, onDelete, onToggle }) => {
             </button>
             <button className="btn btn-toggle" onClick={() => onToggle(id)}>
                 {status ? 'Reopen' : 'Complete'}
+            </button>
+            <button className="btn btn-edit" onClick={handleEdit}>
+                Edit
             </button>
         </div>
     );

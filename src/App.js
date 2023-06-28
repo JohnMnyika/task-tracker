@@ -4,6 +4,7 @@ import 'firebase/compat/auth';
 import 'firebase/compat/database';
 import TaskForm from './components/TaskForm';
 import TaskList from './components/TaskList';
+import './App.css';
 
 const firebaseConfig = {
     // Paste your Firebase config object here
@@ -22,51 +23,59 @@ firebase.initializeApp(firebaseConfig);
 const App = () => {
     const [user, setUser] = useState(null);
     const [tasks, setTasks] = useState([]);
+    const [nameInput, setNameInput] = useState('');
+    const [showModal, setShowModal] = useState(true);
+    const [editTask, setEditTask] = useState(null);
 
     useEffect(() => {
         firebase.auth().onAuthStateChanged((user) => {
             if (user) {
                 setUser(user);
+                setShowModal(false);
                 fetchTasks(user.uid);
             } else {
                 setUser(null);
                 setTasks([]);
+                setShowModal(true);
+                // Clear the tasks when signing out
+                firebase.database().ref('tasks').off();
             }
         });
     }, []);
-
-    const signIn = (name) => {
-        firebase
-            .auth()
-            .signInAnonymously()
-            .then((response) => {
-                const user = response.user;
-                user
-                    .updateProfile({ displayName: name })
-                    .then(() => {
-                        setUser(user);
-                        fetchTasks(user.uid);
-                    })
-                    .catch((error) => {
-                        console.error('Error updating profile:', error);
-                    });
-            })
-            .catch((error) => {
-                console.error('Error signing in:', error);
-            });
-    };
 
     const signOut = () => {
         firebase
             .auth()
             .signOut()
-            .then(() => {
-                setUser(null);
-                setTasks([]);
-            })
             .catch((error) => {
                 console.error('Error signing out:', error);
             });
+    };
+
+    const handleNameSubmit = (event) => {
+        event.preventDefault();
+        const name = nameInput.trim();
+        if (name !== '') {
+            firebase
+                .auth()
+                .signInAnonymously()
+                .then((userCredential) => {
+                    const user = userCredential.user;
+                    setUser(user);
+                    setShowModal(false);
+                    setNameInput('');
+                    user.updateProfile({
+                        displayName: name, // Save the user's name
+                    }).then(() => {
+                        // Name updated successfully
+                    }).catch((error) => {
+                        console.error('Error updating display name:', error);
+                    });
+                })
+                .catch((error) => {
+                    console.error('Error signing in:', error);
+                });
+        }
     };
 
     const fetchTasks = (userId) => {
@@ -88,77 +97,108 @@ const App = () => {
     };
 
     const addTask = (task) => {
-        const userTasksRef = firebase.database().ref(`tasks/${user.uid}`);
-        const newTaskRef = userTasksRef.push();
-        const newTask = { id: newTaskRef.key, ...task };
-        newTaskRef
-            .set(newTask)
-            .then(() => {
-                setTasks([...tasks, newTask]);
-            })
-            .catch((error) => {
-                console.error('Error adding task:', error);
-            });
+        if (user) {
+            const userTasksRef = firebase.database().ref(`tasks/${user.uid}`);
+            const newTaskRef = userTasksRef.push();
+            const newTask = { id: newTaskRef.key, ...task };
+            newTaskRef
+                .set(newTask)
+                .then(() => {
+                    // Task added successfully
+                })
+                .catch((error) => {
+                    console.error('Error adding task:', error);
+                });
+        }
     };
 
     const deleteTask = (id) => {
-        firebase
-            .database()
-            .ref(`tasks/${user.uid}/${id}`)
-            .remove()
+        if (user) {
+            const taskRef = firebase.database().ref(`tasks/${user.uid}/${id}`);
+            const confirmDelete = window.confirm('Are you sure you want to delete this task?');
+            if (confirmDelete) {
+                taskRef
+                    .remove()
+                    .then(() => {
+                        // Task deleted successfully
+                    })
+                    .catch((error) => {
+                        console.error('Error deleting task:', error);
+                    });
+            }
+        }
+    };
+
+    const toggleTask = (id, status) => {
+        const updatedStatus = !status;
+        const taskRef = firebase.database().ref(`tasks/${user.uid}/${id}`);
+        taskRef
+            .update({ status: updatedStatus })
             .then(() => {
-                setTasks(tasks.filter((task) => task.id !== id));
+                // Task status updated successfully
             })
             .catch((error) => {
-                console.error('Error deleting task:', error);
+                console.error('Error updating task status:', error);
             });
     };
 
-    const toggleTask = (id) => {
-        const updatedTasks = tasks.map((task) =>
-            task.id === id ? { ...task, status: !task.status } : task
-        );
-        setTasks(updatedTasks);
-        firebase
-            .database()
-            .ref(`tasks/${user.uid}/${id}`)
-            .update({ status: updatedTasks.find((task) => task.id === id).status })
+    const editTaskHandler = (task) => {
+        setEditTask(task);
+    };
+
+    const updateTask = (id, updatedTask) => {
+        const taskRef = firebase.database().ref(`tasks/${user.uid}/${id}`);
+        taskRef
+            .update(updatedTask)
+            .then(() => {
+                setEditTask(null);
+            })
             .catch((error) => {
                 console.error('Error updating task:', error);
             });
     };
 
     return (
-        <div className="App">
+        <div className="task-tracker">
             <header>
                 {user ? (
-                    <>
-                        <p>Welcome, {user.displayName}!</p>
-                        <button className="btn" onClick={signOut}>
+                    <div className="user-info">
+                        <p className="welcome-text">Welcome, {user.displayName || 'Guest'}!</p>
+                        <button className="btn-signout" onClick={signOut}>
                             Sign Out
                         </button>
-                    </>
-                ) : (
-                    <div>
-                        <h2>Sign In</h2>
-                        <input type="text" id="nameInput" placeholder="Enter your name" />
-                        <button className="btn" onClick={() => signIn(document.getElementById('nameInput').value)}>
-                            Sign In
-                        </button>
                     </div>
+                ) : (
+                    <form className="name-form" onSubmit={handleNameSubmit}>
+                        <label htmlFor="nameInput" className="name-label">
+                            Enter your name:
+                        </label>
+                        <div className="name-input">
+                            <input
+                                type="text"
+                                id="nameInput"
+                                placeholder="Your name"
+                                value={nameInput}
+                                onChange={(event) => setNameInput(event.target.value)}
+                            />
+                            <button type="submit" className="btn-signin">
+                                Sign In
+                            </button>
+                        </div>
+                    </form>
                 )}
             </header>
             {user ? (
-                <>
-                    <TaskForm onAdd={addTask} />
+                <div className="content">
+                    <TaskForm onAdd={addTask} editTask={editTask} onUpdate={updateTask} />
                     {tasks.length > 0 ? (
-                        <TaskList tasks={tasks} onDelete={deleteTask} onToggle={toggleTask} />
+                        <TaskList tasks={tasks} onDelete={deleteTask} onToggle={toggleTask} onEdit={editTaskHandler} />
                     ) : (
-                        <p>No tasks available.</p>
+                        <p className="no-tasks">No tasks available.</p>
                     )}
-                </>
+                </div>
             ) : (
-                <p>Please sign in to view your tasks.</p>
+                showModal && <p className="no-tasks">Please sign in to view your tasks.</p>
             )}
         </div>
     );
